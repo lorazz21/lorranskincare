@@ -1,4 +1,5 @@
-// Tela "Ajustes": data de início, passos, produtos, suplemento, lembretes e backup.
+// Tela "Ajustes": data de início, passos, suplemento, lembretes e backup.
+// Os produtos ficam na aba Produtos.
 
 import * as act from '../actions.js';
 import { formatDuration, formatShort, formatTime, toKey } from '../dates.js';
@@ -10,6 +11,9 @@ import { createInitialState } from '../seed.js';
 import { exportBackup, parseBackup } from '../store.js';
 import { esc, formatBytes, icons, segmented, switchRow, weekdayPicker } from '../ui.js';
 
+const CHECK_OPTIONS = [30, 40, 45, 50, 60];
+const RECHECK_OPTIONS = [7, 10, 15, 20, 30];
+
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const INTERVALS = [60, 90, 120, 150, 180];
 const PAUSE_OPTIONS = [{ id: '2', label: '2 dias' }, { id: '3', label: '3 dias' }];
@@ -17,7 +21,6 @@ const PHOTO_INTERVALS = [[0, 'Desligado'], [7, 'A cada 7 dias'], [14, 'A cada 14
 
 let reorder = false;     // modo "Reordenar" na lista de passos
 let stepDraft = null;    // passo sendo editado na folha
-let productDraft = null; // produto sendo editado na folha
 let photoBackup = null;  // backup das fotos já preparado, esperando o toque em "Salvar"
 
 // ---------- Tela ----------
@@ -29,7 +32,6 @@ export function render(app) {
     <header class="page-header"><h1>Ajustes</h1></header>
     ${routineSection(state, today)}
     ${stepsSection(state)}
-    ${productsSection(state)}
     ${supplementSection(state)}
     ${remindersSection(state)}
     ${backupSection(app)}
@@ -118,35 +120,6 @@ function stepRow(step, products, index, total) {
     </li>`;
 }
 
-function productsSection(state) {
-  const steps = activeSteps(state);
-  const rows = activeProducts(state).map((p) => {
-    const uses = steps.filter((s) => s.productId === p.id).length;
-    const tags = [
-      p.pausable && 'Ativo (pausa na irritação)',
-      p.sunscreen && 'Protetor solar',
-      uses ? `${uses} ${uses === 1 ? 'passo' : 'passos'}` : 'Fora da rotina',
-    ].filter(Boolean);
-    return `
-      <li>
-        <button type="button" class="row" data-action="edit-product" data-id="${esc(p.id)}">
-          <span class="row-main">
-            <span class="row-title">${esc(p.name)}</span>
-            <span class="row-sub">${esc(tags.join(' · '))}</span>
-          </span>
-          ${icons.chevron}
-        </button>
-      </li>`;
-  }).join('');
-
-  return `
-    <section class="card settings">
-      <h2 class="section-title">Produtos</h2>
-      <ul class="rows">${rows}</ul>
-      <button type="button" class="btn btn-soft btn-block" data-action="new-product">${icons.plus}Adicionar produto</button>
-    </section>`;
-}
-
 function supplementSection(state) {
   const sup = state.settings.supplement;
   return `
@@ -167,12 +140,16 @@ function supplementSection(state) {
 }
 
 function remindersSection(state) {
-  const { sunscreenIntervalMin, pauseDefaultDays, photoIntervalDays } = state.settings;
+  const {
+    sunscreenIntervalMin, pauseDefaultDays, photoIntervalDays, productCheckDays, productRecheckDays,
+  } = state.settings;
+  const dayOptions = (list, value) => list
+    .map((d) => `<option value="${d}" ${d === value ? 'selected' : ''}>${d} dias</option>`).join('');
   const options = INTERVALS.map((m) =>
     `<option value="${m}" ${m === sunscreenIntervalMin ? 'selected' : ''}>${formatDuration(m * 60_000)}</option>`).join('');
   return `
     <section class="card settings">
-      <h2 class="section-title">Lembretes e pausa</h2>
+      <h2 class="section-title">Lembretes</h2>
       <label class="field-row">
         <span>Reaplicar protetor a cada</span>
         <select class="input" data-change="sun-interval">${options}</select>
@@ -182,6 +159,14 @@ function remindersSection(state) {
         <select class="input" data-change="photo-interval">
           ${PHOTO_INTERVALS.map(([d, label]) => `<option value="${d}" ${d === photoIntervalDays ? 'selected' : ''}>${label}</option>`).join('')}
         </select>
+      </label>
+      <label class="field-row">
+        <span>Perguntar se ainda tem produto com</span>
+        <select class="input" data-change="product-check">${dayOptions(CHECK_OPTIONS, productCheckDays)}</select>
+      </label>
+      <label class="field-row">
+        <span>Se ainda tiver, perguntar de novo em</span>
+        <select class="input" data-change="product-recheck">${dayOptions(RECHECK_OPTIONS, productRecheckDays)}</select>
       </label>
       <p class="field-label">Pausa sugerida ao registrar irritação</p>
       ${segmented('pause-default', PAUSE_OPTIONS, String(pauseDefaultDays), 'Pausa sugerida')}
@@ -314,29 +299,7 @@ function stepSheet(state) {
     </div>`;
 }
 
-// ---------- Folha: produto ----------
-
-function productSheet() {
-  const d = productDraft;
-  return `
-    <div class="sheet-head">
-      <h2>${d.id ? 'Editar produto' : 'Novo produto'}</h2>
-      <button type="button" class="icon-btn" data-action="close-sheet" aria-label="Fechar">${icons.close}</button>
-    </div>
-    <label class="field">
-      <span class="field-label">Nome</span>
-      <input class="input" type="text" value="${esc(d.name)}" placeholder="Ex.: Tônico calmante" data-input="pdraft-name" autocomplete="off">
-    </label>
-    ${switchRow({ action: 'pdraft-pausable', checked: d.pausable, title: 'Ativo', sub: 'Sai do checklist no modo pausa' })}
-    ${switchRow({ action: 'pdraft-sunscreen', checked: d.sunscreen, title: 'Protetor solar', sub: 'Entra no lembrete de reaplicação' })}
-    <div class="sheet-actions">
-      <button type="button" class="btn btn-primary btn-block" data-action="save-product">Salvar</button>
-      ${d.id ? '<button type="button" class="btn btn-ghost btn-block btn-danger-ghost" data-action="remove-product">Remover produto</button>' : ''}
-    </div>`;
-}
-
 const showStepSheet = (app) => app.openSheet(stepSheet(app.state));
-const showProductSheet = (app) => app.openSheet(productSheet());
 const toggleIn = (list, value) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
 // ---------- Ações ----------
@@ -369,7 +332,7 @@ export const actions = {
 
   'new-step'(app) {
     if (!activeProducts(app.state).length) {
-      app.toast('Cadastre um produto primeiro');
+      app.toast('Cadastre um produto na aba Produtos');
       return;
     }
     stepDraft = newStepDraft(app.state);
@@ -435,58 +398,6 @@ export const actions = {
     app.toast('Passo removido');
   },
 
-  // Produtos
-  'new-product'(app) {
-    productDraft = { id: null, name: '', pausable: false, sunscreen: false };
-    showProductSheet(app);
-  },
-
-  'edit-product'(app, el) {
-    const p = app.state.products.find((x) => x.id === el.dataset.id);
-    if (!p) return;
-    productDraft = { id: p.id, name: p.name, pausable: p.pausable, sunscreen: p.sunscreen };
-    showProductSheet(app);
-  },
-
-  'pdraft-name'(app, el) { productDraft.name = el.value; },
-
-  'pdraft-pausable'(app) {
-    productDraft.pausable = !productDraft.pausable;
-    showProductSheet(app);
-  },
-
-  'pdraft-sunscreen'(app) {
-    productDraft.sunscreen = !productDraft.sunscreen;
-    showProductSheet(app);
-  },
-
-  'save-product'(app) {
-    if (!productDraft.name.trim()) {
-      app.toast('Dê um nome ao produto.');
-      return;
-    }
-    app.update((s) => act.saveProduct(s, productDraft, app.now()));
-    app.closeSheet();
-    app.toast(productDraft.id ? 'Produto atualizado' : 'Produto adicionado');
-  },
-
-  async 'remove-product'(app) {
-    if (activeSteps(app.state).some((s) => s.productId === productDraft.id)) {
-      app.toast('Esse produto está na rotina. Remova os passos que usam ele primeiro.');
-      return;
-    }
-    const ok = await app.confirm({
-      title: 'Remover produto?',
-      message: `"${productDraft.name}" sai da lista de produtos.`,
-      confirmLabel: 'Remover',
-      danger: true,
-    });
-    if (ok === false) showProductSheet(app);
-    if (!ok) return;
-    app.update((s) => act.removeProduct(s, productDraft.id));
-    app.toast('Produto removido');
-  },
-
   // Suplemento (campos de texto salvam sem redesenhar, para não fechar o teclado)
   'sup-enabled'(app) {
     app.update((s) => act.updateSupplement(s, { enabled: !s.settings.supplement.enabled }));
@@ -511,6 +422,15 @@ export const actions = {
 
   'photo-interval'(app, el) {
     app.update((s) => act.updateSettings(s, { photoIntervalDays: Number(el.value) }, app.now()));
+  },
+
+  'product-check'(app, el) {
+    app.update((s) => act.updateSettings(s, { productCheckDays: Number(el.value) }, app.now()));
+    app.toast('Vale para os próximos produtos abertos');
+  },
+
+  'product-recheck'(app, el) {
+    app.update((s) => act.updateSettings(s, { productRecheckDays: Number(el.value) }, app.now()));
   },
 
   'pause-default'(app, el) {

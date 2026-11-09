@@ -9,6 +9,7 @@ import {
 } from '../routine.js';
 import { esc, icons, ring } from '../ui.js';
 import { itemRow, supplementRow } from './checklist.js';
+import { stockActions, stockCard } from './products.js';
 
 const SYMPTOMS = [
   { id: 'ardencia', label: 'Ardência' },
@@ -49,6 +50,7 @@ export function render(app) {
       ${summary(state, plan, entry, sun)}
       ${notices(state, plan, entry, sun)}
       ${photoCard(app, plan.date)}
+      ${stockCard(app, plan.date, { compact: true })}
       ${PERIODS.map((period) => periodSection(period, plan, entry)).join('')}
     `}`;
 }
@@ -293,6 +295,8 @@ const refreshSheet = (app) => app.openSheet(irritationSheet(app));
 // ---------- Ações (data-action) ----------
 
 export const actions = {
+  ...stockActions,
+
   start(app) {
     app.update((s) => act.startRoutine(s, act.todayKey(s, app.now())));
     app.toast('Rotina iniciada. Bom começo!');

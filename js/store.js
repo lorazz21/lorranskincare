@@ -1,6 +1,7 @@
 // Salva e carrega o estado no próprio aparelho (localStorage), e monta o backup em JSON.
 // As fotos (etapa 3) vão para o IndexedDB, porque não cabem aqui.
 
+import { addDays } from './dates.js';
 import { createInitialState, SCHEMA_VERSION } from './seed.js';
 
 const KEY = 'skincare.state';
@@ -33,14 +34,26 @@ export function saveState(state) {
 /** Completa dados de versões anteriores (ou de um backup) com os campos novos. */
 export function migrate(saved) {
   const base = createInitialState();
+  const settings = {
+    ...base.settings,
+    ...saved.settings,
+    supplement: { ...base.settings.supplement, ...saved.settings?.supplement },
+  };
+  const fromV1 = (saved.version ?? 1) < 2;
+  const products = (saved.products ?? base.products).map((p) => {
+    const product = { nextCheck: null, restock: null, openings: [], ...p };
+    delete product.durationDays;
+    // Versão 1 não tinha estoque: quem já começou a rotina abriu os produtos no início.
+    if (fromV1 && !product.openedAt && settings.startDate) product.openedAt = settings.startDate;
+    if (product.openedAt && !product.openings.length) product.openings = [product.openedAt];
+    if (product.openedAt && !product.nextCheck) product.nextCheck = addDays(product.openedAt, settings.productCheckDays);
+    return product;
+  });
   return {
     ...base,
     ...saved,
-    settings: {
-      ...base.settings,
-      ...saved.settings,
-      supplement: { ...base.settings.supplement, ...saved.settings?.supplement },
-    },
+    settings,
+    products,
     log: saved.log ?? {},
     pauses: saved.pauses ?? [],
     version: SCHEMA_VERSION,

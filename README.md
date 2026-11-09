@@ -73,7 +73,7 @@ Vale exportar os dois de vez em quando e sempre antes de apagar o app ou trocar 
 
 ## Como funciona
 
-As quatro abas são Hoje, Histórico, Fotos e Ajustes.
+As cinco abas são Hoje, Histórico, Fotos, Produtos e Ajustes.
 
 - **Hoje:** checklist da manhã e da noite montado pelo dia da semana, pela fase (adaptação nos 7 primeiros dias, depois rotina completa) e por pausas ativas. O dia vira às 4h da manhã, então a rotina da noite feita depois da meia-noite conta para o dia certo.
 - **Vou sair:** contagem de 2 h para reaplicar o protetor (rosto e corpo). Sem servidor, o iOS não deixa um app web notificar com o app fechado. Por isso existe o botão **Adicionar ao Calendário**, que cria um evento com alarme no horário da reaplicação.
@@ -92,11 +92,18 @@ As quatro abas são Hoje, Histórico, Fotos e Ajustes.
   - O lembrete pede as fotos de "antes" no início e depois a cada 14 dias (configurável). "Hoje não" adia até o dia seguinte.
   - **Antes e depois:** escolha duas sessões e o ângulo e veja lado a lado, ou no modo **Deslizar**, arrastando uma divisória sobre a foto.
   - Toque numa foto para ampliar, salvar no iPhone, trocar ou apagar.
+- **Produtos:**
+  - Cada produto mostra há quantos dias está aberto, com uma barra de uso (escala de 2 meses).
+  - Com **45 dias** de uso, o app pergunta "Ainda tem produto suficiente?". **Tenho, sim** → pergunta de novo em **15 dias**, e assim sucessivamente. **Está acabando** → vai para a lista **Para comprar**. Os dois prazos mudam em Ajustes.
+  - Na tela Hoje, com até 2 produtos a conferir, a pergunta aparece um por um; com mais, aparece um resumo com **Tenho de todos** e **Ver um por um**.
+  - Na lista de compras: **Comprei** (continua usando o atual até acabar), **Abri um novo** (zera a contagem) e **Ainda tenho** (volta a perguntar em 15 dias).
+  - O selo na aba mostra quantas perguntas e compras estão pendentes.
+  - Ao começar a rotina, todos os produtos contam como abertos nesse dia. Cada produto guarda o histórico das embalagens ("durou 50 dias").
+  - Aqui também se cadastra, edita e remove produtos (nome, ativo, protetor, data de abertura).
 - **Ajustes:**
   - Data de início e duração da adaptação.
   - Passos da rotina: produto, manhã ou noite, rosto ou corpo, dias da semana, regra da adaptação, observação e ordem.
-  - Produtos: nome, se é ativo (sai no modo pausa) e se é protetor solar.
-  - Suplemento, intervalo do lembrete do protetor, lembrete das fotos e pausa sugerida.
+  - Suplemento, intervalo do lembrete do protetor, lembrete das fotos, prazos da pergunta sobre os produtos e pausa sugerida.
   - Backup da rotina e das fotos (exportar e importar) e apagar todos os dados.
 
 ## Estrutura
@@ -115,13 +122,14 @@ js/
   store.js             salvar e carregar no aparelho (localStorage) e backup da rotina
   photos.js            fotos no IndexedDB e backup das fotos
   images.js            reduz as fotos e gera miniaturas
+  stock.js             estoque: quando perguntar "ainda tem?" e lista de compras
   dates.js             datas e formatos em português
   ics.js               evento de calendário do lembrete
   files.js             compartilhar ou baixar arquivos (backup, calendário)
   ui.js                ícones, anel, botões segmentados, interruptores
-  views/               telas: today.js, history.js, photos.js, settings.js
+  views/               telas: today.js, history.js, photos.js, products.js, settings.js
                        e checklist.js (linhas do checklist usadas nas duas primeiras)
-tests/                 testes das regras, ajustes, fotos e backup (node --test)
+tests/                 testes das regras, ajustes, fotos, estoque e backup (node --test)
 ```
 
 ### Dados salvos
@@ -130,8 +138,10 @@ A rotina fica num único JSON no `localStorage` (chave `skincare.state`):
 
 ```js
 {
-  settings: { startDate, adaptationDays, dayStartsAt, sunscreenIntervalMin, pauseDefaultDays, lastBackupAt, supplement },
-  products: [{ id, name, pausable, sunscreen, openedAt, durationDays, archived }],
+  settings: { startDate, adaptationDays, dayStartsAt, sunscreenIntervalMin, pauseDefaultDays, lastBackupAt,
+              photoIntervalDays, photoSnoozeDate, productCheckDays, productRecheckDays, supplement },
+  products: [{ id, name, pausable, sunscreen, archived,
+               openedAt, nextCheck, restock /* { status: 'low' | 'bought', since } */, openings }],
   steps:    [{ id, period, area, order, productId, weekdays, adaptation, note, archived }],
   log:      { 'AAAA-MM-DD': { expected, done, supplement, irritations, outings, reapplied } },
   pauses:   [{ id, area, from, to, symptoms }],
@@ -148,4 +158,4 @@ Cada dia guarda a própria lista de passos esperados (`expected`). Assim, mudar 
 1. ✅ Base do PWA, dados, regras e tela Hoje (com pausa e lembrete do protetor)
 2. ✅ Histórico (calendário e sequência) e Ajustes (produtos, rotina, data de início, backup)
 3. ✅ Fotos de progresso
-4. Produtos e alerta de recompra
+4. ✅ Produtos e alerta de recompra

@@ -1,14 +1,16 @@
 // Estado inicial do app: sua rotina como ponto de partida (tudo editável depois).
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const product = (id, name, extra = {}) => ({
   id,                  // sigla, usada só internamente
   name,                // nome mostrado na interface
   pausable: false,     // true = ativo que sai do checklist no modo pausa
   sunscreen: false,    // true = entra no lembrete de reaplicação
-  openedAt: null,      // etapa 4: data de abertura
-  durationDays: null,  // etapa 4: duração estimada
+  openedAt: null,      // data em que a embalagem atual foi aberta
+  nextCheck: null,     // quando perguntar "ainda tem produto suficiente?"
+  restock: null,       // lista de compras: { status: 'low' | 'bought', since }
+  openings: [],        // datas de abertura de cada embalagem (inclui a atual)
   archived: false,     // true = removido, mas ainda citado no histórico
   ...extra,
 });
@@ -38,6 +40,8 @@ export function createInitialState() {
       lastBackupAt: null,
       photoIntervalDays: 14,  // lembrete das fotos de progresso (0 = desligado)
       photoSnoozeDate: null,  // "Hoje não" no lembrete das fotos
+      productCheckDays: 45,   // primeira pergunta sobre o estoque, em dias de uso
+      productRecheckDays: 15, // se ainda tiver, pergunta de novo depois de N dias
       supplement: {
         enabled: true,
         name: 'Glutationa oral',

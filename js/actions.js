@@ -24,8 +24,12 @@ export function syncDay(state, date) {
 
 const syncToday = (state, now) => syncDay(state, todayKey(state, now));
 
+/** Começa a rotina: os produtos ainda não abertos contam como abertos nesse dia. */
 export function startRoutine(state, date) {
   state.settings.startDate = date;
+  for (const p of state.products) {
+    if (!p.archived && !p.openedAt) openProduct(state, p.id, date);
+  }
   syncDay(state, date);
 }
 
@@ -110,9 +114,19 @@ export function backHome(state) {
 
 // ---------- Ajustes ----------
 
+/**
+ * Muda a data de início. Produtos abertos no início antigo (e nunca trocados)
+ * acompanham a nova data; sem início antigo, os não abertos abrem na nova data.
+ */
 export function setStartDate(state, date, now) {
   if (!date) return;
+  const previous = state.settings.startDate;
   state.settings.startDate = date;
+  for (const p of state.products) {
+    if (p.archived || p.restock) continue;
+    if (!previous && !p.openedAt) openProduct(state, p.id, date);
+    else if (previous && p.openedAt === previous && (p.openings?.length ?? 0) <= 1) setOpenedAt(state, p.id, date);
+  }
   syncToday(state, now);
 }
 
@@ -187,7 +201,9 @@ export function saveProduct(state, fields, now) {
   if (product) {
     Object.assign(product, data);
   } else {
-    product = { id: `p-${newId()}`, ...data, openedAt: null, durationDays: null, archived: false };
+    product = {
+      id: `p-${newId()}`, ...data, openedAt: null, nextCheck: null, restock: null, openings: [], archived: false,
+    };
     state.products.push(product);
   }
   syncToday(state, now);
@@ -205,4 +221,60 @@ export function removeProduct(state, id) {
   if (state.steps.some((s) => s.productId === id)) product.archived = true;
   else state.products = state.products.filter((p) => p !== product);
   return { ok: true };
+}
+
+// ---------- Estoque ----------
+
+const productById = (state, id) => state.products.find((p) => p.id === id);
+
+/** Abre uma embalagem nova: a pergunta sobre o estoque volta a contar do zero. */
+export function openProduct(state, id, date) {
+  const p = productById(state, id);
+  if (!p) return;
+  const openings = [...(p.openings ?? [])];
+  if (openings[openings.length - 1] !== date) openings.push(date);
+  Object.assign(p, {
+    openedAt: date,
+    openings,
+    nextCheck: addDays(date, state.settings.productCheckDays),
+    restock: null,
+  });
+}
+
+/** Corrige a data de abertura da embalagem atual (vazio = ainda não aberta). */
+export function setOpenedAt(state, id, date) {
+  const p = productById(state, id);
+  if (!p) return;
+  const openings = [...(p.openings ?? [])];
+  if (!date) {
+    if (openings[openings.length - 1] === p.openedAt) openings.pop();
+    Object.assign(p, { openedAt: null, nextCheck: null, openings });
+    return;
+  }
+  if (openings.length) openings[openings.length - 1] = date;
+  else openings.push(date);
+  Object.assign(p, { openedAt: date, openings, nextCheck: addDays(date, state.settings.productCheckDays) });
+}
+
+/** Resposta a "ainda tem produto suficiente?": sim → pergunta de novo depois; não → lista de compras. */
+export function answerStock(state, id, enough, now) {
+  const p = productById(state, id);
+  if (!p) return;
+  const today = todayKey(state, now);
+  if (enough) p.nextCheck = addDays(today, state.settings.productRecheckDays);
+  else p.restock = { status: 'low', since: today };
+}
+
+/** Já comprou o novo (continua usando o atual até acabar). */
+export function markBought(state, id, now) {
+  const p = productById(state, id);
+  if (p?.restock) p.restock = { status: 'bought', since: todayKey(state, now) };
+}
+
+/** Tira da lista de compras sem abrir um novo ("ainda tenho"). */
+export function clearRestock(state, id, now) {
+  const p = productById(state, id);
+  if (!p) return;
+  p.restock = null;
+  p.nextCheck = addDays(todayKey(state, now), state.settings.productRecheckDays);
 }

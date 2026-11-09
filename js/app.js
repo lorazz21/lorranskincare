@@ -5,10 +5,11 @@ import { loadState, requestPersistence, saveState } from './store.js';
 import { esc } from './ui.js';
 import * as history from './views/history.js';
 import * as photos from './views/photos.js';
+import * as products from './views/products.js';
 import * as settings from './views/settings.js';
 import * as today from './views/today.js';
 
-const views = { hoje: today, historico: history, fotos: photos, ajustes: settings };
+const views = { hoje: today, historico: history, fotos: photos, produtos: products, ajustes: settings };
 
 const viewEl = document.getElementById('view');
 const sheetEl = document.getElementById('sheet');
@@ -106,9 +107,25 @@ function routeName() {
   return views[name] ? name : 'hoje';
 }
 
+/** Selos com o número de pendências nas abas (ex.: Produtos). */
+function updateBadges() {
+  for (const [name, view] of Object.entries(views)) {
+    if (!view.badge) continue;
+    const link = document.querySelector(`.tabbar a[data-tab="${name}"]`);
+    const badge = link?.querySelector('.tab-badge');
+    if (!badge) continue;
+    const count = view.badge(app);
+    badge.textContent = count ? String(count) : '';
+    badge.hidden = !count;
+    const label = link.querySelector('span:not(.tab-badge)').textContent;
+    link.setAttribute('aria-label', count ? `${label}, ${count} ${count === 1 ? 'pendência' : 'pendências'}` : label);
+  }
+}
+
 function render() {
   const name = routeName();
   viewEl.innerHTML = views[name].render(app);
+  updateBadges();
   if (name !== currentRoute) {
     currentRoute = name;
     window.scrollTo(0, 0);
