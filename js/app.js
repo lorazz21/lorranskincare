@@ -188,7 +188,18 @@ setInterval(() => {
   if (document.visibilityState === 'visible') views[routeName()].tick?.(app);
 }, 15_000);
 
+/**
+ * O plano gratuito do Netlify coloca um selo fixo no canto inferior direito, por
+ * cima da barra de abas. Enquanto ele existir, a barra sobe para ficar acima dele.
+ */
+function watchHostBadge() {
+  const update = () => document.body.classList.toggle('has-host-badge', Boolean(document.getElementById('nl-badge-frame')));
+  update();
+  new MutationObserver(update).observe(document.body, { childList: true });
+}
+
 render();
+watchHostBadge();
 requestPersistence();
 app.photos.load()
   .catch((err) => console.error('Fotos', err))
