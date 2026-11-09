@@ -5,7 +5,7 @@ const DAY_MS = 86_400_000;
 
 export const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 export const WEEKDAY_SHORT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
-const MONTH_NAMES = [
+export const MONTH_NAMES = [
   'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
 ];
@@ -65,4 +65,23 @@ export function formatDuration(ms) {
 export function joinList(items) {
   if (items.length <= 1) return items.join('');
   return `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`;
+}
+
+/** "2026-11" → "Novembro de 2026" */
+export function formatMonth(month) {
+  const [y, m] = month.split('-').map(Number);
+  const name = MONTH_NAMES[m - 1];
+  return `${name[0].toUpperCase()}${name.slice(1)} de ${y}`;
+}
+
+/** "2026-11" + 1 → "2026-12" */
+export function addMonths(month, n) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
+}
+
+export function daysInMonth(month) {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }

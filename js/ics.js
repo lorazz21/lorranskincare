@@ -1,6 +1,8 @@
 // Gera um evento de calendário (.ics) com alarme. É o jeito de o lembrete tocar
 // com o app fechado: sem servidor, o iOS não deixa um app web agendar notificações.
 
+import { download } from './files.js';
+
 const stamp = (date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); // 20261109T170500Z
 
 const escapeText = (text) => text
@@ -42,13 +44,5 @@ export function buildEvent({ uid, title, description, start, minutes = 10, now =
 
 /** Entrega o .ics ao sistema; no iPhone ele oferece adicionar ao Calendário. */
 export function openEvent(ics, filename = 'lembrete.ics') {
-  const file = new File([ics], filename, { type: 'text/calendar' });
-  const url = URL.createObjectURL(file);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  download(new File([ics], filename, { type: 'text/calendar' }));
 }

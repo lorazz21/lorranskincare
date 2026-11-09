@@ -200,11 +200,12 @@ test('irritação que volta logo depois da pausa sugere dermatologista', () => {
 test('progresso e status do dia', () => {
   const state = started();
   const plan = planFor(state, START);
-  for (const id of plan.expected.slice(0, 3)) act.toggleStep(state, START, id);
+  const now = noon(START);
+  for (const id of plan.expected.slice(0, 3)) act.toggleStep(state, START, id, now);
   assert.equal(dayStatus(state.log[START]), 'partial');
-  for (const id of plan.expected.slice(3)) act.toggleStep(state, START, id);
+  for (const id of plan.expected.slice(3)) act.toggleStep(state, START, id, now);
   assert.equal(dayStatus(state.log[START]), 'complete');
-  act.toggleStep(state, START, plan.expected[0]);
+  act.toggleStep(state, START, plan.expected[0], now);
   assert.equal(dayStatus(state.log[START]), 'partial');
   assert.equal(dayStatus(undefined), 'empty');
 });
@@ -212,7 +213,7 @@ test('progresso e status do dia', () => {
 test('pausa no meio do dia ajusta o total já salvo', () => {
   const state = started();
   const day = addDays(START, 8);
-  act.toggleStep(state, day, planFor(state, day).expected[0]);
+  act.toggleStep(state, day, planFor(state, day).expected[0], noon(day));
   assert.equal(state.log[day].expected.length, 8);
   act.registerIrritation(state, { now: noon(day), areas: ['rosto'], pauseDays: 3 });
   assert.equal(state.log[day].expected.length, 6);

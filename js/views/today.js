@@ -4,9 +4,11 @@ import * as act from '../actions.js';
 import { addDays, formatDuration, formatLong, formatShort, formatTime, joinList } from '../dates.js';
 import { buildEvent, openEvent } from '../ics.js';
 import {
-  adaptationSummary, AREAS, isRecurrence, pausableProducts, PERIODS, planFor, progress, sunscreenStatus,
+  activeProducts, adaptationSummary, AREAS, isRecurrence, pausableProducts, PERIODS, planFor, progress,
+  streaks, sunscreenStatus,
 } from '../routine.js';
 import { esc, icons, ring } from '../ui.js';
+import { itemRow, supplementRow } from './checklist.js';
 
 const SYMPTOMS = [
   { id: 'ardencia', label: 'Ardência' },
@@ -44,7 +46,7 @@ export function render(app) {
   return `
     ${header(plan)}
     ${plan.phase.kind === 'before' ? beforeStart(plan) : `
-      ${summary(plan, entry, sun)}
+      ${summary(state, plan, entry, sun)}
       ${notices(state, plan, entry, sun)}
       ${PERIODS.map((period) => periodSection(period, plan, entry)).join('')}
     `}`;
@@ -84,16 +86,18 @@ function beforeStart(plan) {
     </section>`;
 }
 
-function summary(plan, entry, sun) {
+function summary(state, plan, entry, sun) {
   const { done, total } = progress(plan.expected, entry);
   const left = total - done;
   const complete = total > 0 && left === 0;
+  const streak = streaks(state, plan.date).current;
+  const streakText = streak > 0 ? ` · sequência de ${streak} ${streak === 1 ? 'dia' : 'dias'}` : '';
   return `
     <section class="card summary">
       ${ring(done, total)}
       <div class="summary-text">
         <p class="summary-title">${complete ? 'Dia concluído' : `${done} de ${total} passos`}</p>
-        <p class="muted">${complete ? 'Tudo feito por hoje.' : `${left === 1 ? 'Falta 1 passo' : `Faltam ${left} passos`}`}</p>
+        <p class="muted">${complete ? 'Tudo feito por hoje' : `${left === 1 ? 'Falta 1 passo' : `Faltam ${left} passos`}`}${streakText}</p>
       </div>
     </section>
     <div class="quick-actions">
@@ -114,7 +118,7 @@ function notices(state, plan, entry, sun) {
 }
 
 function sunCard(state, sun) {
-  const names = state.products.filter((p) => p.sunscreen).map((p) => p.name);
+  const names = activeProducts(state).filter((p) => p.sunscreen).map((p) => p.name);
   if (sun.due) {
     return `
       <section class="card notice notice-accent">
@@ -186,7 +190,7 @@ function periodSection(period, plan, entry) {
     return `
       <div class="group">
         <h3 class="group-title">${area.label}</h3>
-        <ul class="checklist">${list.map((item) => itemRow(item, entry)).join('')}</ul>
+        <ul class="checklist">${list.map((item) => itemRow(item, entry?.done?.includes(item.step.id) ?? false)).join('')}</ul>
       </div>`;
   }).join('');
 
@@ -197,56 +201,12 @@ function periodSection(period, plan, entry) {
         <span class="period-count ${complete ? 'is-complete' : ''}">${complete ? `${icons.check}Concluída` : `${done}/${total}`}</span>
       </header>
       ${groups}
-      ${supplement ? supplementGroup(supplement, entry) : ''}
+      ${supplement ? `
+        <div class="group">
+          <h3 class="group-title">Suplemento</h3>
+          <ul class="checklist">${supplementRow(supplement, Boolean(entry?.supplement))}</ul>
+        </div>` : ''}
     </section>`;
-}
-
-function itemRow({ step, product, skip, pause }, entry) {
-  if (skip) {
-    const reason = skip === 'pausa'
-      ? `Em pausa até ${formatShort(pause.to)}`
-      : 'Hoje não · fase de adaptação';
-    return `
-      <li>
-        <div class="item is-skipped">
-          <span class="box"></span>
-          <span class="item-text">
-            <span class="item-name">${esc(product.name)}</span>
-            <span class="item-note">${reason}</span>
-          </span>
-        </div>
-      </li>`;
-  }
-  const checked = entry?.done?.includes(step.id) ?? false;
-  return `
-    <li>
-      <button type="button" class="item" role="checkbox" aria-checked="${checked}" data-action="toggle" data-step="${esc(step.id)}">
-        <span class="box">${icons.check}</span>
-        <span class="item-text">
-          <span class="item-name">${esc(product.name)}</span>
-          ${step.note ? `<span class="item-note">${esc(step.note)}</span>` : ''}
-        </span>
-      </button>
-    </li>`;
-}
-
-function supplementGroup(supplement, entry) {
-  const checked = Boolean(entry?.supplement);
-  return `
-    <div class="group">
-      <h3 class="group-title">Suplemento</h3>
-      <ul class="checklist">
-        <li>
-          <button type="button" class="item is-optional" role="checkbox" aria-checked="${checked}" data-action="toggle-supplement">
-            <span class="box">${icons.check}</span>
-            <span class="item-text">
-              <span class="item-name">${esc(supplement.name)} <span class="tag">opcional</span></span>
-              ${supplement.note ? `<span class="item-note">${esc(supplement.note)}</span>` : ''}
-            </span>
-          </button>
-        </li>
-      </ul>
-    </div>`;
 }
 
 // ---------- Folha "Registrar irritação" ----------
@@ -317,7 +277,8 @@ export const actions = {
   },
 
   toggle(app, el) {
-    app.update((s) => act.toggleStep(s, act.todayKey(s, app.now()), el.dataset.step));
+    const now = app.now();
+    app.update((s) => act.toggleStep(s, act.todayKey(s, now), el.dataset.step, now));
   },
 
   'toggle-supplement'(app) {
@@ -343,7 +304,7 @@ export const actions = {
   'add-calendar'(app) {
     const sun = sunscreenStatus(app.state, app.now());
     if (!sun) return;
-    const names = app.state.products.filter((p) => p.sunscreen).map((p) => p.name);
+    const names = activeProducts(app.state).filter((p) => p.sunscreen).map((p) => p.name);
     const ics = buildEvent({
       uid: `protetor-${sun.dueAt.getTime()}@skincare`,
       title: 'Reaplicar protetor solar',

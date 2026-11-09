@@ -15,7 +15,11 @@ export const icons = {
   alert: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/>'),
   pause: svg('<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>'),
   close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
-  home: svg('<path d="M4 11.5 12 5l8 6.5"/><path d="M6 10v9.5h12V10"/>'),
+  plus: svg('<path d="M12 5v14M5 12h14"/>'),
+  chevron: svg('<path d="m9 6 6 6-6 6"/>'),
+  chevronLeft: svg('<path d="m15 6-6 6 6 6"/>'),
+  up: svg('<path d="m6 15 6-6 6 6"/>'),
+  down: svg('<path d="m6 9 6 6 6-6"/>'),
   drop: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.6c2.1 2.7 6.6 7.9 6.6 11.9a6.6 6.6 0 0 1-13.2 0c0-4 4.5-9.2 6.6-11.9Z"/></svg>',
 };
 
@@ -34,5 +38,40 @@ export function ring(done, total) {
           stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - fraction)).toFixed(2)}"/>
       </svg>
       <span class="ring-label">${complete ? icons.check : `${pct}%`}</span>
+    </div>`;
+}
+
+/** Botões segmentados (escolha única). `options`: [{ id, label }] */
+export function segmented(action, options, value, label = '') {
+  return `
+    <div class="segmented" role="radiogroup"${label ? ` aria-label="${esc(label)}"` : ''}>
+      ${options.map((o) => `
+        <button type="button" role="radio" aria-checked="${o.id === value}" data-action="${action}" data-value="${esc(o.id)}">${esc(o.label)}</button>`).join('')}
+    </div>`;
+}
+
+/** Linha com interruptor liga/desliga. */
+export function switchRow({ action, checked, title, sub = '' }) {
+  return `
+    <button type="button" class="switch-row" role="switch" aria-checked="${Boolean(checked)}" data-action="${action}">
+      <span class="switch-text">
+        <span class="switch-title">${esc(title)}</span>
+        ${sub ? `<span class="muted small">${esc(sub)}</span>` : ''}
+      </span>
+      <span class="switch" aria-hidden="true"></span>
+    </button>`;
+}
+
+const PICKER_DAYS = [
+  [1, 'Seg', 'segunda'], [2, 'Ter', 'terça'], [3, 'Qua', 'quarta'], [4, 'Qui', 'quinta'],
+  [5, 'Sex', 'sexta'], [6, 'Sáb', 'sábado'], [0, 'Dom', 'domingo'],
+];
+
+/** Seletor de dias da semana (vários). `selected`: [0..6] */
+export function weekdayPicker(action, selected) {
+  return `
+    <div class="weekday-picker">
+      ${PICKER_DAYS.map(([day, short, name]) => `
+        <button type="button" class="toggle" aria-pressed="${selected.includes(day)}" aria-label="${name}" data-action="${action}" data-value="${day}">${short}</button>`).join('')}
     </div>`;
 }

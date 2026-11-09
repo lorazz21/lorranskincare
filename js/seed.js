@@ -9,6 +9,7 @@ const product = (id, name, extra = {}) => ({
   sunscreen: false,    // true = entra no lembrete de reaplicação
   openedAt: null,      // etapa 4: data de abertura
   durationDays: null,  // etapa 4: duração estimada
+  archived: false,     // true = removido, mas ainda citado no histórico
   ...extra,
 });
 
@@ -21,6 +22,7 @@ const step = (period, area, order, productId, extra = {}) => ({
   weekdays: null,      // [0..6] (0 = domingo); null = todo dia
   adaptation: null,    // regra na fase de adaptação: { weekdays } | { alternate: true } | { skip: true }
   note: '',
+  archived: false,     // true = removido, mas ainda citado no histórico
   ...extra,
 });
 
@@ -33,6 +35,7 @@ export function createInitialState() {
       dayStartsAt: 4,
       sunscreenIntervalMin: 120,
       pauseDefaultDays: 3,
+      lastBackupAt: null,
       supplement: {
         enabled: true,
         name: 'Glutationa oral',
@@ -59,8 +62,8 @@ export function createInitialState() {
       step('noite', 'rosto', 1, 'GL-02'),
       // Sérum do dia: AL-10 seg/qua/sex, AA-2 ter/qui/sáb, domingo sem sérum.
       step('noite', 'rosto', 2, 'AL-10', { weekdays: [1, 3, 5], adaptation: { weekdays: [1, 5] } }),
-      step('noite', 'rosto', 2, 'AA-2', { weekdays: [2, 4, 6] }),
-      step('noite', 'rosto', 3, 'CH-01'),
+      step('noite', 'rosto', 3, 'AA-2', { weekdays: [2, 4, 6] }),
+      step('noite', 'rosto', 4, 'CH-01'),
       step('noite', 'corpo', 1, 'EC-01', { note: 'Áreas expostas', adaptation: { alternate: true } }),
     ],
     // Um registro por dia: { expected: [ids], done: [ids], supplement, irritations, outings, reapplied }

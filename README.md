@@ -54,9 +54,20 @@ Aumente o número em `sw.js` (`const VERSION = 'v2'`, `'v3'`…). Na próxima ve
 Importante:
 
 - O app instalado guarda os dados separado do Safari. O que você marcar no Safari não aparece no app instalado, e vice-versa.
-- **Apagar o ícone apaga os dados.** Faça backup antes (exportar JSON chega na etapa 2).
+- **Apagar o ícone apaga os dados.** Faça backup antes (veja abaixo).
+
+## Backup
+
+Em **Ajustes → Backup**:
+
+- **Exportar:** no iPhone, abre o menu Compartilhar. Escolha *Salvar em Arquivos* (iCloud Drive, por exemplo), AirDrop ou e-mail. No computador, o arquivo `skincare-backup-AAAA-MM-DD.json` é baixado.
+- **Importar:** escolha um arquivo de backup. O app mostra de quando é o backup e quantos dias tem, e pede confirmação. Restaurar **substitui** os dados atuais do aparelho.
+
+Vale exportar de vez em quando e sempre antes de apagar o app ou trocar de celular.
 
 ## Como funciona
+
+As três abas são Hoje, Histórico e Ajustes.
 
 - **Hoje:** checklist da manhã e da noite montado pelo dia da semana, pela fase (adaptação nos 7 primeiros dias, depois rotina completa) e por pausas ativas. O dia vira às 4h da manhã, então a rotina da noite feita depois da meia-noite conta para o dia certo.
 - **Vou sair:** contagem de 2 h para reaplicar o protetor (rosto e corpo). Sem servidor, o iOS não deixa um app web notificar com o app fechado. Por isso existe o botão **Adicionar ao Calendário**, que cria um evento com alarme no horário da reaplicação.
@@ -65,6 +76,16 @@ Importante:
   - Corpo: sai a emulsão de ácido lático.
   - Dá para encerrar a pausa antes.
   - Se a irritação voltar até 7 dias depois de uma pausa, o app sugere procurar um dermatologista.
+- **Histórico:**
+  - Calendário do mês: dias concluídos, parciais, com pausa e com irritação.
+  - Sequência atual e recorde. O dia de hoje ainda em andamento não quebra a sequência.
+  - Tocando num dia passado, você corrige o que ficou sem marcar. Num dia futuro, vê o que está previsto.
+- **Ajustes:**
+  - Data de início e duração da adaptação.
+  - Passos da rotina: produto, manhã ou noite, rosto ou corpo, dias da semana, regra da adaptação, observação e ordem.
+  - Produtos: nome, se é ativo (sai no modo pausa) e se é protetor solar.
+  - Suplemento, intervalo do lembrete do protetor e pausa sugerida.
+  - Backup (exportar e importar) e apagar todos os dados.
 
 ## Estrutura
 
@@ -82,9 +103,11 @@ js/
   store.js             salvar e carregar no aparelho (localStorage)
   dates.js             datas e formatos em português
   ics.js               evento de calendário do lembrete
-  ui.js                ícones, anel de progresso, escape de texto
+  files.js             compartilhar ou baixar arquivos (backup, calendário)
+  ui.js                ícones, anel, botões segmentados, interruptores
   views/               telas: today.js, history.js, settings.js
-tests/routine.test.js  testes das regras (node --test)
+                       e checklist.js (linhas do checklist usadas nas duas primeiras)
+tests/                 testes das regras, ajustes e backup (node --test)
 ```
 
 ### Dados salvos
@@ -93,20 +116,20 @@ Tudo fica num único JSON no `localStorage` (chave `skincare.state`):
 
 ```js
 {
-  settings: { startDate, adaptationDays, dayStartsAt, sunscreenIntervalMin, pauseDefaultDays, supplement },
-  products: [{ id, name, pausable, sunscreen, openedAt, durationDays }],
-  steps:    [{ id, period, area, order, productId, weekdays, adaptation, note }],
+  settings: { startDate, adaptationDays, dayStartsAt, sunscreenIntervalMin, pauseDefaultDays, lastBackupAt, supplement },
+  products: [{ id, name, pausable, sunscreen, openedAt, durationDays, archived }],
+  steps:    [{ id, period, area, order, productId, weekdays, adaptation, note, archived }],
   log:      { 'AAAA-MM-DD': { expected, done, supplement, irritations, outings, reapplied } },
   pauses:   [{ id, area, from, to, symptoms }],
   sunscreen: { dueAt, setAt } | null
 }
 ```
 
-Cada dia guarda a própria lista de passos esperados (`expected`). Assim, mudar a rotina depois não altera o histórico.
+Cada dia guarda a própria lista de passos esperados (`expected`). Assim, mudar a rotina depois não altera o histórico. Pelo mesmo motivo, um passo ou produto removido que já aparece no histórico é só arquivado (`archived: true`): some da rotina, mas os dias passados continuam mostrando o nome.
 
 ## Etapas
 
 1. ✅ Base do PWA, dados, regras e tela Hoje (com pausa e lembrete do protetor)
-2. Histórico (calendário e sequência) e Ajustes (produtos, rotina, data de início, backup)
+2. ✅ Histórico (calendário e sequência) e Ajustes (produtos, rotina, data de início, backup)
 3. Fotos de progresso
 4. Produtos e alerta de recompra

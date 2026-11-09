@@ -1,7 +1,7 @@
 // Motor da rotina: dado o estado e um dia, decide o que entra no checklist.
 // Só funções puras (sem DOM nem armazenamento), para poderem ser testadas no Node.
 
-import { dayKey, diffDays, joinList, weekday, WEEKDAY_SHORT } from './dates.js';
+import { addDays, dayKey, diffDays, joinList, weekday, WEEKDAY_SHORT } from './dates.js';
 
 export const PERIODS = [
   { id: 'manha', label: 'Manhã' },
@@ -15,6 +15,9 @@ export const AREAS = [
 
 /** Irritação até N dias depois do fim de uma pausa conta como recorrência. */
 export const RECURRENCE_WINDOW_DAYS = 7;
+
+export const activeSteps = (state) => state.steps.filter((s) => !s.archived);
+export const activeProducts = (state) => state.products.filter((p) => !p.archived);
 
 /**
  * Fase da rotina num dia:
@@ -63,7 +66,7 @@ export function planFor(state, date) {
   const items = [];
 
   if (running) {
-    for (const step of sortSteps(state.steps)) {
+    for (const step of sortSteps(activeSteps(state))) {
       if (step.weekdays?.length && !step.weekdays.includes(wd)) continue;
       const product = products.get(step.productId);
       if (!product) continue;
@@ -98,10 +101,38 @@ export function dayStatus(entry) {
   return done > 0 ? 'partial' : 'empty';
 }
 
+/**
+ * Sequência atual (dias concluídos seguidos até hoje) e recorde.
+ * Hoje ainda em andamento não quebra a sequência: ela conta até ontem.
+ */
+export function streaks(state, today) {
+  const start = state.settings.startDate;
+  if (!start) return { current: 0, best: 0 };
+  const complete = new Set(Object.entries(state.log)
+    .filter(([key, entry]) => key >= start && key <= today && dayStatus(entry) === 'complete')
+    .map(([key]) => key));
+
+  let current = 0;
+  let day = complete.has(today) ? today : addDays(today, -1);
+  while (complete.has(day)) {
+    current += 1;
+    day = addDays(day, -1);
+  }
+
+  let best = 0;
+  for (const key of complete) {
+    if (complete.has(addDays(key, -1))) continue; // só a partir do começo de cada sequência
+    let length = 0;
+    for (let d = key; complete.has(d); d = addDays(d, 1)) length += 1;
+    best = Math.max(best, length);
+  }
+  return { current, best };
+}
+
 /** Produtos que saem do checklist quando a área entra em pausa. */
 export function pausableProducts(state, area) {
-  const used = new Set(state.steps.filter((s) => s.area === area).map((s) => s.productId));
-  return state.products.filter((p) => p.pausable && used.has(p.id));
+  const used = new Set(activeSteps(state).filter((s) => s.area === area).map((s) => s.productId));
+  return activeProducts(state).filter((p) => p.pausable && used.has(p.id));
 }
 
 /** A irritação voltou pouco depois de uma pausa (já encerrada) na mesma área? */
@@ -121,18 +152,30 @@ export function sunscreenStatus(state, now) {
   return { dueAt, remainingMs, due: remainingMs <= 0 };
 }
 
-/** Frases que descrevem a fase de adaptação, geradas a partir das regras. */
+// ---------- Textos ----------
+
+const sortWeekdays = (days) => [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)); // seg → dom
+
+/** [1, 3, 5] → "seg, qua e sex"; null ou todos → "Todo dia" */
+export function describeWeekdays(weekdays) {
+  if (!weekdays?.length || weekdays.length === 7) return 'Todo dia';
+  return joinList(sortWeekdays(weekdays).map((d) => WEEKDAY_SHORT[d]));
+}
+
+/** Regra de adaptação em texto, ou null se o passo segue a rotina normal. */
+export function describeAdaptation(step) {
+  const rule = step.adaptation;
+  if (!rule) return null;
+  if (rule.skip) return 'fica de fora';
+  if (rule.alternate) return step.period === 'noite' ? 'noites alternadas' : 'manhãs alternadas';
+  if (rule.weekdays) return `só ${joinList(sortWeekdays(rule.weekdays).map((d) => WEEKDAY_SHORT[d]))}`;
+  return null;
+}
+
+/** Frases que descrevem a fase de adaptação, para a tela de boas-vindas. */
 export function adaptationSummary(state) {
   const products = new Map(state.products.map((p) => [p.id, p]));
-  return sortSteps(state.steps)
-    .filter((s) => s.adaptation && products.has(s.productId))
-    .map((s) => {
-      const name = products.get(s.productId).name;
-      const rule = s.adaptation;
-      const periodWord = s.period === 'noite' ? 'noites' : 'manhãs';
-      if (rule.skip) return `${name}: fica de fora`;
-      if (rule.alternate) return `${name}: ${periodWord} alternadas`;
-      if (rule.weekdays) return `${name}: só ${joinList(rule.weekdays.map((d) => WEEKDAY_SHORT[d]))}`;
-      return name;
-    });
+  return sortSteps(activeSteps(state))
+    .filter((s) => describeAdaptation(s) && products.has(s.productId))
+    .map((s) => `${products.get(s.productId).name}: ${describeAdaptation(s)}`);
 }

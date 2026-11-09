@@ -1,4 +1,4 @@
-// Salva e carrega o estado no próprio aparelho (localStorage).
+// Salva e carrega o estado no próprio aparelho (localStorage), e monta o backup em JSON.
 // As fotos (etapa 3) vão para o IndexedDB, porque não cabem aqui.
 
 import { createInitialState, SCHEMA_VERSION } from './seed.js';
@@ -30,8 +30,8 @@ export function saveState(state) {
   }
 }
 
-/** Completa dados salvos por versões anteriores com os campos novos. */
-function migrate(saved) {
+/** Completa dados de versões anteriores (ou de um backup) com os campos novos. */
+export function migrate(saved) {
   const base = createInitialState();
   return {
     ...base,
@@ -41,8 +41,33 @@ function migrate(saved) {
       ...saved.settings,
       supplement: { ...base.settings.supplement, ...saved.settings?.supplement },
     },
+    log: saved.log ?? {},
+    pauses: saved.pauses ?? [],
     version: SCHEMA_VERSION,
   };
+}
+
+// ---------- Backup ----------
+
+export function exportBackup(state, now = new Date()) {
+  return JSON.stringify({ app: 'skincare', exportedAt: now.toISOString(), state }, null, 2);
+}
+
+/** Lê o texto de um backup. Lança um erro com mensagem em português se não servir. */
+export function parseBackup(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('O arquivo não é um JSON válido.');
+  }
+  const state = data?.app === 'skincare' ? data.state : data;
+  const valid = state && typeof state === 'object'
+    && state.settings && typeof state.settings === 'object'
+    && Array.isArray(state.products) && Array.isArray(state.steps)
+    && state.log && typeof state.log === 'object';
+  if (!valid) throw new Error('Esse arquivo não parece um backup deste app.');
+  return { state: migrate(state), exportedAt: data.exportedAt ?? null };
 }
 
 /** Pede ao navegador para não apagar os dados quando faltar espaço. */
