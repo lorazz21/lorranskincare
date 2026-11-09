@@ -40,7 +40,9 @@ O servidor só entrega os arquivos. Seus dados nunca saem do iPhone.
 
 **Netlify:** entre em <https://app.netlify.com/drop> e arraste a pasta do projeto (descompactada). O Netlify pede uma conta gratuita para manter o site no ar.
 
-Para **atualizar** um site que já está no Netlify, não use o Drop de novo (ele cria outro site). Abra o seu site no painel, vá em **Deploys** e arraste a pasta nova na área "Drag and drop your site output folder here". O endereço continua o mesmo, e os dados no iPhone também.
+**Netlify ligado ao GitHub (recomendado):** com o código no GitHub, o Netlify publica sozinho a cada envio. No painel do site: *Site configuration → Build & deploy → Link repository*, escolha o repositório e deixe o comando de build vazio (o `netlify.toml` já diz para publicar a raiz). O endereço do site continua o mesmo.
+
+Para **atualizar** sem GitHub, não use o Drop de novo (ele cria outro site). Abra o seu site no painel, vá em **Deploys** e arraste a pasta nova na área "Drag and drop your site output folder here". O endereço continua o mesmo, e os dados no iPhone também.
 
 ### Ao publicar uma versão nova
 

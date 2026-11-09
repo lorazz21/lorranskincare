@@ -1,0 +1,4 @@
+# Netlify: site estático, sem etapa de build. A raiz do repositório é publicada como está.
+[build]
+  publish = "."
+  command = ""
