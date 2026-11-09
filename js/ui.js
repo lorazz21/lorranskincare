@@ -16,6 +16,7 @@ export const icons = {
   pause: svg('<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>'),
   close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
   plus: svg('<path d="M12 5v14M5 12h14"/>'),
+  camera: svg('<path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5Z"/><circle cx="12" cy="13" r="3.5"/>'),
   chevron: svg('<path d="m9 6 6 6-6 6"/>'),
   chevronLeft: svg('<path d="m15 6-6 6 6 6"/>'),
   up: svg('<path d="m6 15 6-6 6 6"/>'),
@@ -74,4 +75,10 @@ export function weekdayPicker(action, selected) {
       ${PICKER_DAYS.map(([day, short, name]) => `
         <button type="button" class="toggle" aria-pressed="${selected.includes(day)}" aria-label="${name}" data-action="${action}" data-value="${day}">${short}</button>`).join('')}
     </div>`;
+}
+
+/** 4404019 → "4,2 MB" */
+export function formatBytes(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
 }

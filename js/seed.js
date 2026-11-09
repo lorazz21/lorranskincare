@@ -36,6 +36,8 @@ export function createInitialState() {
       sunscreenIntervalMin: 120,
       pauseDefaultDays: 3,
       lastBackupAt: null,
+      photoIntervalDays: 14,  // lembrete das fotos de progresso (0 = desligado)
+      photoSnoozeDate: null,  // "Hoje não" no lembrete das fotos
       supplement: {
         enabled: true,
         name: 'Glutationa oral',

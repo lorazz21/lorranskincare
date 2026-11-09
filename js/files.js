@@ -13,11 +13,12 @@ export function download(file) {
 }
 
 /**
+ * `data`: texto ou Blob.
  * No iPhone, abre o menu Compartilhar (dá para "Salvar em Arquivos", AirDrop, e-mail…).
  * Onde não houver, baixa o arquivo. Retorna 'shared' | 'downloaded' | 'cancelled'.
  */
-export async function shareOrDownload(text, filename, type) {
-  const file = new File([text], filename, { type });
+export async function shareOrDownload(data, filename, type) {
+  const file = new File([data], filename, { type });
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });

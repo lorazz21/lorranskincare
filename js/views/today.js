@@ -4,8 +4,8 @@ import * as act from '../actions.js';
 import { addDays, formatDuration, formatLong, formatShort, formatTime, joinList } from '../dates.js';
 import { buildEvent, openEvent } from '../ics.js';
 import {
-  activeProducts, adaptationSummary, AREAS, isRecurrence, pausableProducts, PERIODS, planFor, progress,
-  streaks, sunscreenStatus,
+  activeProducts, adaptationSummary, AREAS, isRecurrence, pausableProducts, PERIODS, photoReminder, planFor,
+  progress, streaks, sunscreenStatus,
 } from '../routine.js';
 import { esc, icons, ring } from '../ui.js';
 import { itemRow, supplementRow } from './checklist.js';
@@ -48,6 +48,7 @@ export function render(app) {
     ${plan.phase.kind === 'before' ? beforeStart(plan) : `
       ${summary(state, plan, entry, sun)}
       ${notices(state, plan, entry, sun)}
+      ${photoCard(app, plan.date)}
       ${PERIODS.map((period) => periodSection(period, plan, entry)).join('')}
     `}`;
 }
@@ -75,6 +76,7 @@ function welcome(state) {
       <p class="muted">Depois de ${state.settings.adaptationDays} dias, o app passa sozinho para a rotina completa.</p>
       <button type="button" class="btn btn-primary btn-block btn-lg" data-action="start">Começar rotina hoje</button>
       <p class="muted small center">A data de início pode ser alterada depois, em Ajustes.</p>
+      <p class="muted small center">Dica: tire as fotos de "antes" na aba Fotos antes de começar.</p>
     </section>`;
 }
 
@@ -143,6 +145,26 @@ function sunCard(state, sun) {
           <button type="button" class="btn btn-soft btn-sm" data-action="add-calendar">${icons.calendarPlus}Adicionar ao Calendário</button>
           <button type="button" class="btn btn-ghost btn-sm" data-action="reapply">Reapliquei</button>
           <button type="button" class="btn btn-ghost btn-sm" data-action="back-home">Voltei</button>
+        </div>
+      </div>
+    </section>`;
+}
+
+function photoCard(app, date) {
+  if (app.photos.status !== 'ready') return '';
+  const r = photoReminder(app.state.settings, app.photos.lastDate(), date);
+  if (!r?.due || r.snoozed) return '';
+  return `
+    <section class="card notice notice-accent">
+      <div class="notice-icon">${icons.camera}</div>
+      <div class="notice-body">
+        <p class="notice-title">${r.first ? 'Fotos de antes' : 'Hora das fotos de progresso'}</p>
+        <p class="notice-text">${r.first
+    ? 'Tire fotos de frente e dos dois lados para comparar depois.'
+    : `Já faz ${r.daysSince} dias desde as últimas.`}</p>
+        <div class="notice-actions">
+          <a class="btn btn-primary btn-sm" href="#/fotos">Tirar fotos</a>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="snooze-photos">Hoje não</button>
         </div>
       </div>
     </section>`;
@@ -295,6 +317,11 @@ export const actions = {
     app.update((s) => act.reapplySunscreen(s, app.now()));
     const sun = sunscreenStatus(app.state, app.now());
     app.toast(`Próxima reaplicação às ${formatTime(sun.dueAt)}`);
+  },
+
+  'snooze-photos'(app) {
+    const now = app.now();
+    app.update((s) => act.updateSettings(s, { photoSnoozeDate: act.todayKey(s, now) }, now));
   },
 
   'back-home'(app) {

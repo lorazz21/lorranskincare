@@ -152,6 +152,26 @@ export function sunscreenStatus(state, now) {
   return { dueAt, remainingMs, due: remainingMs <= 0 };
 }
 
+/**
+ * Lembrete das fotos de progresso. As primeiras ("antes") são pedidas desde o
+ * início da rotina; depois, a cada `photoIntervalDays` desde as últimas.
+ * Retorna null se o lembrete estiver desligado.
+ */
+export function photoReminder(settings, lastPhotoDate, today) {
+  const interval = settings.photoIntervalDays;
+  if (!interval) return null;
+  const first = !lastPhotoDate;
+  const next = first ? settings.startDate : addDays(lastPhotoDate, interval);
+  const due = Boolean(next) && today >= next;
+  return {
+    first,
+    next,
+    due,
+    snoozed: due && settings.photoSnoozeDate === today,
+    daysSince: first ? null : diffDays(lastPhotoDate, today),
+  };
+}
+
 // ---------- Textos ----------
 
 const sortWeekdays = (days) => [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)); // seg → dom

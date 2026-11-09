@@ -8,15 +8,17 @@ import {
 } from '../routine.js';
 import { createInitialState } from '../seed.js';
 import { exportBackup, parseBackup } from '../store.js';
-import { esc, icons, segmented, switchRow, weekdayPicker } from '../ui.js';
+import { esc, formatBytes, icons, segmented, switchRow, weekdayPicker } from '../ui.js';
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const INTERVALS = [60, 90, 120, 150, 180];
 const PAUSE_OPTIONS = [{ id: '2', label: '2 dias' }, { id: '3', label: '3 dias' }];
+const PHOTO_INTERVALS = [[0, 'Desligado'], [7, 'A cada 7 dias'], [14, 'A cada 14 dias'], [21, 'A cada 21 dias'], [28, 'A cada 28 dias']];
 
 let reorder = false;     // modo "Reordenar" na lista de passos
 let stepDraft = null;    // passo sendo editado na folha
 let productDraft = null; // produto sendo editado na folha
+let photoBackup = null;  // backup das fotos já preparado, esperando o toque em "Salvar"
 
 // ---------- Tela ----------
 
@@ -30,7 +32,7 @@ export function render(app) {
     ${productsSection(state)}
     ${supplementSection(state)}
     ${remindersSection(state)}
-    ${backupSection(state)}
+    ${backupSection(app)}
     <button type="button" class="btn btn-ghost btn-block btn-danger-ghost" data-action="reset">Apagar todos os dados</button>`;
 }
 
@@ -165,7 +167,7 @@ function supplementSection(state) {
 }
 
 function remindersSection(state) {
-  const { sunscreenIntervalMin, pauseDefaultDays } = state.settings;
+  const { sunscreenIntervalMin, pauseDefaultDays, photoIntervalDays } = state.settings;
   const options = INTERVALS.map((m) =>
     `<option value="${m}" ${m === sunscreenIntervalMin ? 'selected' : ''}>${formatDuration(m * 60_000)}</option>`).join('');
   return `
@@ -175,13 +177,21 @@ function remindersSection(state) {
         <span>Reaplicar protetor a cada</span>
         <select class="input" data-change="sun-interval">${options}</select>
       </label>
+      <label class="field-row">
+        <span>Fotos de progresso</span>
+        <select class="input" data-change="photo-interval">
+          ${PHOTO_INTERVALS.map(([d, label]) => `<option value="${d}" ${d === photoIntervalDays ? 'selected' : ''}>${label}</option>`).join('')}
+        </select>
+      </label>
       <p class="field-label">Pausa sugerida ao registrar irritação</p>
       ${segmented('pause-default', PAUSE_OPTIONS, String(pauseDefaultDays), 'Pausa sugerida')}
     </section>`;
 }
 
-function backupSection(state) {
+function backupSection(app) {
+  const { state, photos } = app;
   const last = state.settings.lastBackupAt;
+  const photoCount = photos.status === 'ready' ? photos.photoCount() : 0;
   const hasData = Object.keys(state.log).length > 0;
   const lastText = last
     ? `Último backup: ${formatShort(toKey(new Date(last)))} às ${formatTime(new Date(last))}`
@@ -195,7 +205,13 @@ function backupSection(state) {
         <button type="button" class="btn btn-primary" data-action="export">Exportar</button>
         <button type="button" class="btn btn-soft" data-action="import">Importar</button>
       </div>
-      <input type="file" id="import-file" accept="application/json,.json" data-change="import-file" hidden>
+      <div class="divider"></div>
+      <p class="section-sub">Fotos</p>
+      <p class="small muted">As fotos têm um backup separado, porque o arquivo fica grande.${photoCount ? ` ${photoCount} ${photoCount === 1 ? 'foto' : 'fotos'} · ${formatBytes(photos.totalBytes())}.` : ''}</p>
+      <div class="button-row">
+        <button type="button" class="btn btn-soft" data-action="export-photos" ${photoCount ? '' : 'disabled'}>Exportar fotos</button>
+        <button type="button" class="btn btn-soft" data-action="import-photos">Importar fotos</button>
+      </div>
     </section>`;
 }
 
@@ -493,6 +509,10 @@ export const actions = {
     app.update((s) => act.updateSettings(s, { sunscreenIntervalMin: Number(el.value) }, app.now()));
   },
 
+  'photo-interval'(app, el) {
+    app.update((s) => act.updateSettings(s, { photoIntervalDays: Number(el.value) }, app.now()));
+  },
+
   'pause-default'(app, el) {
     app.update((s) => act.updateSettings(s, { pauseDefaultDays: Number(el.dataset.value) }, app.now()));
   },
@@ -507,13 +527,8 @@ export const actions = {
     app.toast('Backup exportado');
   },
 
-  'import'() {
-    document.getElementById('import-file')?.click();
-  },
-
-  async 'import-file'(app, el) {
-    const file = el.files?.[0];
-    el.value = '';
+  async 'import'(app) {
+    const file = await app.pickFile('application/json,.json');
     if (!file) return;
     let backup;
     try {
@@ -535,14 +550,68 @@ export const actions = {
     app.toast('Backup restaurado');
   },
 
+  // Backup das fotos em dois toques: preparar o arquivo leva alguns segundos, e o
+  // iPhone só abre o menu Compartilhar logo depois de um toque.
+  async 'export-photos'(app) {
+    app.toast('Preparando o backup das fotos…');
+    const now = app.now();
+    try {
+      const text = await app.photos.exportJson(now);
+      photoBackup = { blob: new Blob([text], { type: 'application/json' }), name: `skincare-fotos-${toKey(now)}.json` };
+    } catch (err) {
+      console.error(err);
+      app.toast('Não consegui preparar o backup das fotos.');
+      return;
+    }
+    const count = app.photos.photoCount();
+    app.openSheet(`
+      <div class="sheet-head">
+        <h2>Backup das fotos pronto</h2>
+        <button type="button" class="icon-btn" data-action="close-sheet" aria-label="Fechar">${icons.close}</button>
+      </div>
+      <p>${count} ${count === 1 ? 'foto' : 'fotos'} · ${formatBytes(photoBackup.blob.size)}</p>
+      <p class="muted small">No iPhone, escolha "Salvar em Arquivos" para guardar no iCloud Drive.</p>
+      <div class="sheet-actions">
+        <button type="button" class="btn btn-primary btn-block" data-action="save-photo-backup">Salvar arquivo</button>
+      </div>`);
+  },
+
+  async 'save-photo-backup'(app) {
+    if (!photoBackup) return;
+    const result = await shareOrDownload(photoBackup.blob, photoBackup.name, 'application/json');
+    if (result === 'cancelled') return;
+    photoBackup = null;
+    app.closeSheet();
+    app.toast('Backup das fotos exportado');
+  },
+
+  async 'import-photos'(app) {
+    const file = await app.pickFile('application/json,.json');
+    if (!file) return;
+    app.toast('Importando fotos…');
+    try {
+      const { added } = await app.photos.importJson(await file.text());
+      app.render();
+      app.toast(added ? `${added} ${added === 1 ? 'foto importada' : 'fotos importadas'}` : 'Nenhuma foto nova nesse arquivo');
+    } catch (err) {
+      console.error(err);
+      app.toast(err.message || 'Não consegui importar as fotos.');
+    }
+  },
+
   async reset(app) {
     const ok = await app.confirm({
       title: 'Apagar todos os dados?',
-      message: 'Rotina, histórico e registros deste aparelho serão apagados. Se quiser guardar algo, exporte um backup antes.',
+      message: 'Rotina, histórico, registros e fotos deste aparelho serão apagados. Se quiser guardar algo, exporte os backups antes.',
       confirmLabel: 'Apagar tudo',
       danger: true,
     });
     if (!ok) return;
+    try {
+      await app.photos.clearAll();
+    } catch (err) {
+      console.error(err);
+    }
     app.replaceState(createInitialState());
     location.hash = '#/hoje';
     app.toast('Dados apagados');

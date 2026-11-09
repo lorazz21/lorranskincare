@@ -1,16 +1,19 @@
 // Ponto de entrada: carrega os dados, desenha a aba atual e liga os eventos.
 
+import { createPhotoStore } from './photos.js';
 import { loadState, requestPersistence, saveState } from './store.js';
 import { esc } from './ui.js';
 import * as history from './views/history.js';
+import * as photos from './views/photos.js';
 import * as settings from './views/settings.js';
 import * as today from './views/today.js';
 
-const views = { hoje: today, historico: history, ajustes: settings };
+const views = { hoje: today, historico: history, fotos: photos, ajustes: settings };
 
 const viewEl = document.getElementById('view');
 const sheetEl = document.getElementById('sheet');
 const toastEl = document.getElementById('toast');
+const fileInput = document.getElementById('file-input');
 let toastTimer = null;
 let currentRoute = null;
 let pendingConfirm = null;
@@ -21,6 +24,7 @@ function persist() {
 
 const app = {
   state: loadState(),
+  photos: createPhotoStore(),
   now: () => new Date(),
 
   /** Altera o estado, salva no aparelho e redesenha. */
@@ -59,6 +63,23 @@ const app = {
 
   closeSheet() {
     if (sheetEl.open) sheetEl.close();
+  },
+
+  sheetOpen: () => sheetEl.open,
+
+  /**
+   * Abre o seletor de arquivo (no iPhone: câmera, fotos ou Arquivos) e devolve o
+   * arquivo escolhido, ou null. Usa um campo fixo fora da tela: redesenhar a tela
+   * enquanto o seletor está aberto não perde a escolha.
+   */
+  pickFile(accept) {
+    return new Promise((resolve) => {
+      fileInput.accept = accept;
+      fileInput.value = '';
+      fileInput.onchange = () => resolve(fileInput.files?.[0] ?? null);
+      fileInput.oncancel = () => resolve(null);
+      fileInput.click();
+    });
   },
 
   /**
@@ -121,7 +142,7 @@ document.addEventListener('click', (event) => {
   handler(app, el, event);
 });
 
-for (const kind of ['change', 'input']) {
+for (const kind of ['change', 'input', 'pointerdown']) {
   document.addEventListener(kind, (event) => {
     const el = event.target.closest(`[data-${kind}]`);
     if (!el) return;
@@ -152,6 +173,9 @@ setInterval(() => {
 
 render();
 requestPersistence();
+app.photos.load()
+  .catch((err) => console.error('Fotos', err))
+  .finally(render);
 
 // Service worker: guarda os arquivos para o app abrir offline.
 if ('serviceWorker' in navigator) {

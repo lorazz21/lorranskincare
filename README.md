@@ -40,6 +40,8 @@ O servidor só entrega os arquivos. Seus dados nunca saem do iPhone.
 
 **Netlify:** entre em <https://app.netlify.com/drop> e arraste a pasta do projeto (descompactada). O Netlify pede uma conta gratuita para manter o site no ar.
 
+Para **atualizar** um site que já está no Netlify, não use o Drop de novo (ele cria outro site). Abra o seu site no painel, vá em **Deploys** e arraste a pasta nova na área "Drag and drop your site output folder here". O endereço continua o mesmo, e os dados no iPhone também.
+
 ### Ao publicar uma versão nova
 
 Aumente o número em `sw.js` (`const VERSION = 'v2'`, `'v3'`…). Na próxima vez que você abrir o app com internet, ele baixa a versão nova e recarrega sozinho.
@@ -63,11 +65,13 @@ Em **Ajustes → Backup**:
 - **Exportar:** no iPhone, abre o menu Compartilhar. Escolha *Salvar em Arquivos* (iCloud Drive, por exemplo), AirDrop ou e-mail. No computador, o arquivo `skincare-backup-AAAA-MM-DD.json` é baixado.
 - **Importar:** escolha um arquivo de backup. O app mostra de quando é o backup e quantos dias tem, e pede confirmação. Restaurar **substitui** os dados atuais do aparelho.
 
-Vale exportar de vez em quando e sempre antes de apagar o app ou trocar de celular.
+As **fotos** têm um backup separado (**Exportar fotos** / **Importar fotos**), porque o arquivo fica grande. Exportar leva dois toques: o app prepara o arquivo e depois mostra **Salvar arquivo** (o iPhone só abre o menu Compartilhar logo depois de um toque). Importar fotos **soma** ao que já existe: entram os dias que faltam e, em dias que já existem, só os ângulos que faltam.
+
+Vale exportar os dois de vez em quando e sempre antes de apagar o app ou trocar de celular.
 
 ## Como funciona
 
-As três abas são Hoje, Histórico e Ajustes.
+As quatro abas são Hoje, Histórico, Fotos e Ajustes.
 
 - **Hoje:** checklist da manhã e da noite montado pelo dia da semana, pela fase (adaptação nos 7 primeiros dias, depois rotina completa) e por pausas ativas. O dia vira às 4h da manhã, então a rotina da noite feita depois da meia-noite conta para o dia certo.
 - **Vou sair:** contagem de 2 h para reaplicar o protetor (rosto e corpo). Sem servidor, o iOS não deixa um app web notificar com o app fechado. Por isso existe o botão **Adicionar ao Calendário**, que cria um evento com alarme no horário da reaplicação.
@@ -80,12 +84,18 @@ As três abas são Hoje, Histórico e Ajustes.
   - Calendário do mês: dias concluídos, parciais, com pausa e com irritação.
   - Sequência atual e recorde. O dia de hoje ainda em andamento não quebra a sequência.
   - Tocando num dia passado, você corrige o que ficou sem marcar. Num dia futuro, vê o que está previsto.
+- **Fotos:**
+  - Cada sessão é um dia com até três ângulos: frente, lado esquerdo e lado direito. Dá para tirar na hora ou escolher da galeria.
+  - As fotos são reduzidas para no máximo 1600 px no lado maior (algumas centenas de KB cada) e ficam só no aparelho, no IndexedDB.
+  - O lembrete pede as fotos de "antes" no início e depois a cada 14 dias (configurável). "Hoje não" adia até o dia seguinte.
+  - **Antes e depois:** escolha duas sessões e o ângulo e veja lado a lado, ou no modo **Deslizar**, arrastando uma divisória sobre a foto.
+  - Toque numa foto para ampliar, salvar no iPhone, trocar ou apagar.
 - **Ajustes:**
   - Data de início e duração da adaptação.
   - Passos da rotina: produto, manhã ou noite, rosto ou corpo, dias da semana, regra da adaptação, observação e ordem.
   - Produtos: nome, se é ativo (sai no modo pausa) e se é protetor solar.
-  - Suplemento, intervalo do lembrete do protetor e pausa sugerida.
-  - Backup (exportar e importar) e apagar todos os dados.
+  - Suplemento, intervalo do lembrete do protetor, lembrete das fotos e pausa sugerida.
+  - Backup da rotina e das fotos (exportar e importar) e apagar todos os dados.
 
 ## Estrutura
 
@@ -100,19 +110,21 @@ js/
   seed.js              rotina inicial (produtos e passos)
   routine.js           regras: o que entra no checklist de cada dia
   actions.js           ações que alteram os dados (marcar, pausar, sair…)
-  store.js             salvar e carregar no aparelho (localStorage)
+  store.js             salvar e carregar no aparelho (localStorage) e backup da rotina
+  photos.js            fotos no IndexedDB e backup das fotos
+  images.js            reduz as fotos e gera miniaturas
   dates.js             datas e formatos em português
   ics.js               evento de calendário do lembrete
   files.js             compartilhar ou baixar arquivos (backup, calendário)
   ui.js                ícones, anel, botões segmentados, interruptores
-  views/               telas: today.js, history.js, settings.js
+  views/               telas: today.js, history.js, photos.js, settings.js
                        e checklist.js (linhas do checklist usadas nas duas primeiras)
-tests/                 testes das regras, ajustes e backup (node --test)
+tests/                 testes das regras, ajustes, fotos e backup (node --test)
 ```
 
 ### Dados salvos
 
-Tudo fica num único JSON no `localStorage` (chave `skincare.state`):
+A rotina fica num único JSON no `localStorage` (chave `skincare.state`):
 
 ```js
 {
@@ -125,11 +137,13 @@ Tudo fica num único JSON no `localStorage` (chave `skincare.state`):
 }
 ```
 
+As fotos ficam no IndexedDB (banco `skincare-photos`), uma entrada por sessão: `{ id, date, note, photos: { frente, esquerdo, direito } }`, cada foto com a imagem, a miniatura e o tamanho.
+
 Cada dia guarda a própria lista de passos esperados (`expected`). Assim, mudar a rotina depois não altera o histórico. Pelo mesmo motivo, um passo ou produto removido que já aparece no histórico é só arquivado (`archived: true`): some da rotina, mas os dias passados continuam mostrando o nome.
 
 ## Etapas
 
 1. ✅ Base do PWA, dados, regras e tela Hoje (com pausa e lembrete do protetor)
 2. ✅ Histórico (calendário e sequência) e Ajustes (produtos, rotina, data de início, backup)
-3. Fotos de progresso
+3. ✅ Fotos de progresso
 4. Produtos e alerta de recompra

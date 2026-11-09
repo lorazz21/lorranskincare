@@ -61,6 +61,7 @@ export function parseBackup(text) {
   } catch {
     throw new Error('O arquivo não é um JSON válido.');
   }
+  if (data?.app === 'skincare-photos') throw new Error('Esse é o backup das fotos. Use "Importar fotos".');
   const state = data?.app === 'skincare' ? data.state : data;
   const valid = state && typeof state === 'object'
     && state.settings && typeof state.settings === 'object'

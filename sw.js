@@ -1,7 +1,7 @@
 // Service worker: guarda os arquivos do app para abrir offline.
 // A cada publicação, aumente VERSION para o iPhone baixar a versão nova.
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `skincare-${VERSION}`;
 
 const ASSETS = [
@@ -14,6 +14,8 @@ const ASSETS = [
   'js/dates.js',
   'js/files.js',
   'js/ics.js',
+  'js/images.js',
+  'js/photos.js',
   'js/routine.js',
   'js/seed.js',
   'js/store.js',
@@ -21,6 +23,7 @@ const ASSETS = [
   'js/views/checklist.js',
   'js/views/today.js',
   'js/views/history.js',
+  'js/views/photos.js',
   'js/views/settings.js',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
